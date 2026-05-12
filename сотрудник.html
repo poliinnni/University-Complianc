@@ -49,18 +49,16 @@
         <button class="btn" id="refreshBtn">🔄 Обновить</button>
         <button class="btn export-btn" id="exportExcelBtn">📎 Экспорт Excel</button>
         <button class="btn" id="toggleFilterBtn">🔘 Скрыть завершённые</button>
-        <button class="btn" id="clearAllBtn" style="color:#b91c1c;">⚠️ Очистить все (тест)</button>
+        <button class="btn" id="clearAllBtn" style="color:#b91c1c;">⚠️ Очистить все</button>
     </div>
     <div style="overflow-x: auto;">
         <table id="reportsTable" style="min-width: 1000px;">
-            <thead>
-                <tr><th>Код</th><th>Категория</th><th>Описание</th><th>Дата</th><th>Анонимно</th><th>ФИО</th><th>Файлы</th><th>Статус</th><th>Действия</th></tr>
-            </thead>
+            <thead><tr><th>Код обращения</th><th>Категория</th><th>Описание</th><th>Дата</th><th>Анонимно</th><th>ФИО</th><th>Файлы</th><th>Статус</th><th>Действия</th></tr></thead>
             <tbody id="reportsBody"><tr><td colspan="9">Загрузка...</td></tr>
             </tbody>
-        没关系
+        </table>
     </div>
-    <footer>Нажмите на имя файла — в реальной системе будет скачивание. Данные синхронизируются через MockAPI.</footer>
+    <footer>Нажмите на файл — только название. Для скачивания — в реальной системе.</footer>
 </div>
 
 <div id="resolutionModal" class="modal">
@@ -68,7 +66,7 @@
         <h3 id="modalTitle">Указать причину или меры</h3>
         <p id="modalHint"></p>
         <textarea id="resolutionText" rows="3" placeholder="Введите текст..."></textarea>
-        <input type="hidden" id="modalCode">
+        <input type="hidden" id="modalReportCode">
         <input type="hidden" id="modalNewStatusKey">
         <button class="btn btn-primary" id="saveResolutionBtn">Сохранить</button>
         <button class="btn" id="closeModalBtn">Отмена</button>
@@ -83,19 +81,18 @@
     async function fetchReports() {
         try {
             const res = await fetch(`${API_BASE}/${RESOURCE}`);
-            if (!res.ok) throw new Error('API error: ' + res.status);
+            if (!res.ok) throw new Error('API error');
             const data = await res.json();
             return Array.isArray(data) ? data : [];
         } catch (err) {
-            console.error(err);
-            document.getElementById('apiStatusMsg').innerText = '❌ Ошибка загрузки из API';
+            document.getElementById('apiStatusMsg').innerText = '❌ Ошибка загрузки';
             document.getElementById('apiStatusMsg').style.background = '#fee2e2';
             return [];
         }
     }
 
-    async function updateReport(code, data) {
-        const res = await fetch(`${API_BASE}/${RESOURCE}/${code}`, {
+    async function updateReport(id, data) {
+        const res = await fetch(`${API_BASE}/${RESOURCE}/${id}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(data)
@@ -104,24 +101,8 @@
         return res.json();
     }
 
-    async function deleteReport(code) {
-        const res = await fetch(`${API_BASE}/${RESOURCE}/${code}`, {
-            method: 'DELETE'
-        });
-        if (!res.ok) throw new Error('Delete failed');
-        return res.json();
-    }
-
-    async function deleteAllReports() {
-        const reports = await fetchReports();
-        if (!reports.length) return;
-        for (let r of reports) {
-            try {
-                await deleteReport(r.id);
-            } catch(e) {
-                console.error('Ошибка удаления', r.id, e);
-            }
-        }
+    async function deleteReport(id) {
+        await fetch(`${API_BASE}/${RESOURCE}/${id}`, { method: 'DELETE' });
     }
 
     async function renderTable() {
@@ -129,8 +110,6 @@
         if (!reports.length) {
             document.getElementById('reportsBody').innerHTML = '<tr><td colspan="9">📭 Нет обращений</td></tr>';
             updateStats([]);
-            document.getElementById('apiStatusMsg').innerText = '✅ Данные загружены (пусто)';
-            document.getElementById('apiStatusMsg').style.background = '#dcfce7';
             return;
         }
         
@@ -139,9 +118,8 @@
             filtered = filtered.filter(r => r.statusKey !== 'rejected' && r.statusKey !== 'resolved');
         }
         
-        const tbody = document.getElementById('reportsBody');
         if (filtered.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="9">📭 Нет обращений (или все завершённые скрыты)</td></tr>';
+            document.getElementById('reportsBody').innerHTML = '<tr><td colspan="9">📭 Нет обращений (или все завершённые скрыты)</td></tr>';
             updateStats(reports);
             return;
         }
@@ -152,25 +130,20 @@
             const fioDisplay = (r.isAnon === false && r.fio) ? r.fio : '—';
             let filesHtml = '—';
             if (r.attachments && r.attachments.length) {
-                filesHtml = r.attachments.map(f => {
-                    return `<span class="file-link" onclick="alert('В реальной системе файл «${f.name}» будет доступен для скачивания.')">📎 ${f.name}</span>`;
-                }).join('<br>');
+                filesHtml = r.attachments.map(f => `<span class="file-link" onclick="alert('Файл: ${f.name}')">📎 ${f.name}</span>`).join('<br>');
             }
-            
-            const shortDesc = (r.description || '').substring(0, 60);
-            const descText = shortDesc + (r.description?.length > 60 ? '…' : '');
-            
+            const shortDesc = (r.description || '').substring(0, 60) + (r.description?.length > 60 ? '…' : '');
             html += `<tr>
-                <td><code>${r.id}</code></td>
+                <td><code>${r.reportCode || r.id}</code></td>
                 <td>${r.category || ''}</td>
-                <td>${descText}</td>
-                <td style="white-space:nowrap">${r.createdAt || ''}</td>
+                <td>${shortDesc}</td>
+                <td>${r.createdAt || ''}</td>
                 <td>${r.isAnon ? '🔒 Да' : '👤 Нет'}</td>
                 <td>${fioDisplay}</td>
                 <td>${filesHtml}</td>
                 <td><span class="status-badge ${statusClass}">${r.status}</span></td>
                 <td>
-                    <select class="status-select" data-code="${r.id}">
+                    <select class="status-select" data-id="${r.id}" data-code="${r.reportCode}">
                         <option value="waiting" ${r.statusKey === 'waiting' ? 'selected' : ''}>⏳ Ожидает</option>
                         <option value="work" ${r.statusKey === 'work' ? 'selected' : ''}>🔄 В работе</option>
                         <option value="verify" ${r.statusKey === 'verify' ? 'selected' : ''}>🔍 В проверке</option>
@@ -180,10 +153,10 @@
                 </td>
             </tr>`;
         }
-        tbody.innerHTML = html;
+        document.getElementById('reportsBody').innerHTML = html;
         attachStatusEvents();
         updateStats(reports);
-        document.getElementById('apiStatusMsg').innerText = '✅ Данные загружены из API';
+        document.getElementById('apiStatusMsg').innerText = '✅ Данные загружены';
         document.getElementById('apiStatusMsg').style.background = '#dcfce7';
     }
 
@@ -195,18 +168,18 @@
     }
 
     async function statusChangeHandler(e) {
-        const code = e.target.dataset.code;
+        const id = e.target.dataset.id;
+        const reportCode = e.target.dataset.code;
         const newKey = e.target.value;
         const reports = await fetchReports();
-        const report = reports.find(r => r.id === code);
+        const report = reports.find(r => r.id == id);
         if (!report) return;
         
-        const needReason = (newKey === 'rejected' || newKey === 'resolved');
-        if (needReason) {
-            document.getElementById('modalCode').value = code;
+        if (newKey === 'rejected' || newKey === 'resolved') {
+            document.getElementById('modalReportCode').value = reportCode;
             document.getElementById('modalNewStatusKey').value = newKey;
             document.getElementById('modalTitle').innerText = newKey === 'rejected' ? '❌ Причина отклонения' : '✅ Принятые меры';
-            document.getElementById('modalHint').innerText = newKey === 'rejected' ? 'Укажите причину отклонения' : 'Опишите принятые меры';
+            document.getElementById('modalHint').innerText = newKey === 'rejected' ? 'Укажите причину' : 'Опишите меры';
             document.getElementById('resolutionText').value = '';
             document.getElementById('resolutionModal').style.display = 'flex';
             return;
@@ -221,24 +194,24 @@
         report.status = newStatusText;
         report.updatedAt = new Date().toLocaleString();
         report.resolutionText = null;
-        await updateReport(code, report);
+        await updateReport(id, report);
         renderTable();
     }
 
     document.getElementById('saveResolutionBtn').addEventListener('click', async () => {
-        const code = document.getElementById('modalCode').value;
+        const reportCode = document.getElementById('modalReportCode').value;
         const newKey = document.getElementById('modalNewStatusKey').value;
         const text = document.getElementById('resolutionText').value.trim();
         if (!text) { alert('Заполните поле'); return; }
         
         const reports = await fetchReports();
-        const report = reports.find(r => r.id === code);
+        const report = reports.find(r => r.reportCode === reportCode);
         if (report) {
             report.statusKey = newKey;
             report.status = newKey === 'rejected' ? 'Отклонено по причине:' : 'Меры приняты';
             report.resolutionText = text;
             report.updatedAt = new Date().toLocaleString();
-            await updateReport(code, report);
+            await updateReport(report.id, report);
         }
         document.getElementById('resolutionModal').style.display = 'none';
         renderTable();
@@ -247,18 +220,16 @@
     document.getElementById('closeModalBtn').addEventListener('click', () => {
         document.getElementById('resolutionModal').style.display = 'none';
     });
-    
     window.addEventListener('click', (e) => {
-        const modal = document.getElementById('resolutionModal');
-        if (e.target === modal) {
-            modal.style.display = 'none';
+        if (e.target === document.getElementById('resolutionModal')) {
+            document.getElementById('resolutionModal').style.display = 'none';
         }
     });
 
-    async function updateStats(allReports) {
-        const total = allReports.length;
+    async function updateStats(reports) {
+        const total = reports.length;
         let waiting = 0, active = 0;
-        allReports.forEach(r => {
+        reports.forEach(r => {
             if (r.statusKey === 'waiting') waiting++;
             if (r.statusKey === 'work' || r.statusKey === 'verify') active++;
         });
@@ -276,29 +247,31 @@
     
     document.getElementById('exportExcelBtn').addEventListener('click', async () => {
         let reports = await fetchReports();
-        if (reports.length === 0) { alert('Нет данных для экспорта'); return; }
+        if (!reports.length) { alert('Нет данных'); return; }
         let rows = [['Код','Категория','Описание','Дата','Анонимно','ФИО','Статус','Решение','Файлы','Обновлено']];
         for (let r of reports) {
             let files = r.attachments?.map(f => f.name).join('; ') || '';
-            let fioValue = (r.isAnon === false && r.fio) ? r.fio : '—';
             rows.push([
-                r.id, r.category || '', (r.description || '').replace(/"/g, '""'), 
-                r.createdAt || '', r.isAnon ? 'Да' : 'Нет', fioValue, 
+                r.reportCode || r.id, r.category || '', (r.description || '').replace(/"/g, '""'),
+                r.createdAt || '', r.isAnon ? 'Да' : 'Нет', r.isAnon ? '—' : (r.fio || '—'),
                 r.status || '', r.resolutionText || '', files, r.updatedAt || ''
             ]);
         }
         const csv = rows.map(row => row.map(cell => `"${cell}"`).join(',')).join('\n');
-        const blob = new Blob(["\uFEFF" + csv], {type: 'text/csv;charset=utf-8;'});
-        const link = document.createElement('a');
-        link.href = URL.createObjectURL(blob);
-        link.download = 'compliance_reports.csv';
-        link.click();
+        const blob = new Blob(["\uFEFF" + csv], {type: 'text/csv'});
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'compliance_reports.csv';
+        a.click();
         URL.revokeObjectURL(blob);
     });
     
     document.getElementById('clearAllBtn').addEventListener('click', async () => {
-        if (confirm('⚠️ Удалить ВСЕ обращения? Это действие необратимо.')) {
-            await deleteAllReports();
+        if (confirm('Удалить ВСЕ обращения?')) {
+            let reports = await fetchReports();
+            for (let r of reports) {
+                try { await deleteReport(r.id); } catch(e) {}
+            }
             renderTable();
         }
     });
