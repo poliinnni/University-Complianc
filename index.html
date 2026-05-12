@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Горячая линия комплаенса</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: system-ui, sans-serif; background: #f0f4f8; padding: 40px 20px; }
+        .container { max-width: 700px; margin: 0 auto; }
+        .card { background: white; border-radius: 24px; box-shadow: 0 20px 35px -12px rgba(0,0,0,0.1); overflow: hidden; }
+        .header { background: #0f2b3d; color: white; padding: 28px 32px; }
+        .badge { display: inline-block; background: #2d6a4f; padding: 6px 12px; border-radius: 40px; font-size: 13px; margin-top: 12px; }
+        .tabs { display: flex; border-bottom: 1px solid #e2e8f0; background: #f8fafc; }
+        .tab { flex: 1; text-align: center; padding: 14px; cursor: pointer; font-weight: 500; color: #64748b; }
+        .tab.active { color: #0f2b3d; border-bottom: 3px solid #0f2b3d; background: white; }
+        .tab-content { display: none; padding: 32px; }
+        .tab-content.active { display: block; }
+        .form-group { margin-bottom: 24px; }
+        label { font-weight: 500; margin-bottom: 8px; display: block; }
+        select, textarea, input { width: 100%; padding: 12px 16px; border: 1px solid #cbd5e1; border-radius: 12px; font-family: inherit; }
+        .radio-group { display: flex; gap: 32px; margin-top: 8px; }
+        button { background: #0f2b3d; color: white; border: none; padding: 14px; border-radius: 40px; font-size: 16px; font-weight: 500; cursor: pointer; width: 100%; }
+        .info-box { background: #eef2ff; padding: 16px; border-radius: 16px; font-size: 14px; margin-top: 16px; text-align: center; }
+        .status-card { background: #f1f5f9; border-radius: 16px; padding: 20px; margin-top: 16px; }
+        .track-code-display { background: white; border: 2px dashed #2d6a4f; border-radius: 16px; text-align: center; margin: 16px 0; padding: 16px; }
+        .track-code { font-size: 36px; font-weight: 800; letter-spacing: 2px; }
+        .btn-outline { background: transparent; border: 1px solid #cbd5e1; color: #0f2b3d; margin-top: 12px; }
+        footer { text-align: center; margin-top: 24px; font-size: 13px; color: #64748b; }
+        .api-status { background: #f1f5f9; border-radius: 12px; padding: 8px; font-size: 12px; margin-bottom: 16px; text-align: center; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="card">
+        <div class="header">
+            <h1>Горячая линия комплаенса</h1>
+            <p>Этика · Антикоррупция · Безопасность</p>
+            <div class="badge">🔒 Анонимно. IP и метаданные не сохраняются</div>
+        </div>
+        <div class="tabs">
+            <div class="tab active" data-tab="report">📝 Сообщить о нарушении</div>
+            <div class="tab" data-tab="check">🔍 Проверить статус по коду</div>
+        </div>
+        <div id="tab-report" class="tab-content active">
+            <div class="api-status" id="apiStatusMsg">🌐 Данные синхронизируются через MockAPI</div>
+            <form id="complianceForm">
+                <div class="form-group">
+                    <label>Категория нарушения</label>
+                    <select id="category" required>
+                        <option value="">–– Выберите ––</option>
+                        <option>Взятка / подкуп</option>
+                        <option>Конфликт интересов</option>
+                        <option>Давление / угрозы</option>
+                        <option>Фальсификация документов / оценок</option>
+                        <option>Домогательства / буллинг</option>
+                        <option>Другое</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Описание ситуации</label>
+                    <textarea rows="5" id="description" required></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Прикрепить файлы (скриншоты, документы)</label>
+                    <input type="file" id="fileInput">
+                    <div style="font-size:12px;">Файлы до 500 КБ, в демо сохраняется имя</div>
+                </div>
+                <div class="form-group">
+                    <label>Режим подачи</label>
+                    <div class="radio-group">
+                        <label><input type="radio" name="anon" value="anon" checked> 🔒 Анонимно</label>
+                        <label><input type="radio" name="anon" value="named"> 👤 Неанонимно</label>
+                    </div>
+                </div>
+                <div id="fioGroup" style="display:none;">
+                    <div class="form-group"><label>ФИО</label><input type="text" id="fio"></div>
+                </div>
+                <button type="submit">✉️ Отправить</button>
+            </form>
+            <div id="submitResult"></div>
+        </div>
+        <div id="tab-check" class="tab-content">
+            <div class="form-group"><label>Ваш код</label><input type="text" id="statusCode" placeholder="Например: X9K-3M7P"></div>
+            <button id="checkStatusBtn">🔍 Проверить статус</button>
+            <div id="statusResult" class="status-card" style="display:none;"></div>
+        </div>
+    </div>
+    <footer>Политика нерепрессалий</footer>
+</div>
+
+<script>
+    // ========== НАСТРОЙКА API (ВАШ АДРЕС) ==========
+    const API_BASE = 'https://6a0348792afe8349b4b4f53c.mockapi.io';
+    const RESOURCE = 'reports';
+    // ===============================================
+
+    // Переключение вкладок
+    document.querySelectorAll('.tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+            const target = tab.dataset.tab;
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            tab.classList.add('active');
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            document.getElementById(`tab-${target}`).classList.add('active');
+        });
+    });
+
+    // Показать поле ФИО при неанонимном режиме
+    const radios = document.querySelectorAll('input[name="anon"]');
+    const fioGroup = document.getElementById('fioGroup');
+    radios.forEach(radio => {
+        radio.addEventListener('change', () => {
+            fioGroup.style.display = radio.value === 'named' ? 'block' : 'none';
+        });
+    });
+
+    // Генерация кода
+    function generateCode() {
+        return 'X' + Math.random().toString(36).substring(2,5).toUpperCase() + 
+               '-' + Math.random().toString(36).substring(2,5).toUpperCase();
+    }
+
+    // Отправка в API
+    async function createReport(data) {
+        const res = await fetch(`${API_BASE}/${RESOURCE}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+        if (!res.ok) throw new Error('Ошибка API');
+        return res.json();
+    }
+
+    // Получить обращение по коду (id)
+    async function getReport(code) {
+        const res = await fetch(`${API_BASE}/${RESOURCE}`);
+        if (!res.ok) return null;
+        const all = await res.json();
+        return all.find(r => r.id === code) || null;
+    }
+
+    const form = document.getElementById('complianceForm');
+    const submitResult = document.getElementById('submitResult');
+    const fileInput = document.getElementById('fileInput');
+    const apiStatus = document.getElementById('apiStatusMsg');
+
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const category = document.getElementById('category').value;
+        const description = document.getElementById('description').value;
+        const isAnon = document.querySelector('input[name="anon"]:checked').value === 'anon';
+        const fio = document.getElementById('fio').value;
+        if (!category || !description) { alert('Заполните категорию и описание'); return; }
+
+        let attachments = [];
+        if (fileInput.files.length) {
+            const file = fileInput.files[0];
+            attachments = [{ name: file.name, size: file.size, type: file.type, tooBig: file.size > 500*1024 }];
+        }
+        const code = generateCode();
+        const newReport = {
+            id: code,
+            status: 'Ожидает внимания комплаенс-офицера',
+            statusKey: 'waiting',
+            category,
+            description: description.slice(0,500),
+            isAnon,
+            fio: isAnon ? null : fio,
+            createdAt: new Date().toLocaleString(),
+            updatedAt: new Date().toLocaleString(),
+            resolutionText: null,
+            attachments
+        };
+
+        apiStatus.innerText = '⏳ Отправка...';
+        try {
+            await createReport(newReport);
+            apiStatus.innerText = '✅ Сохранено в API';
+            submitResult.innerHTML = `
+                <div class="status-card" style="background:#e8f5e9;">
+                    <div style="font-size:20px;">✅ Обращение принято</div>
+                    <div class="track-code-display">
+                        <div>ВАШ КОД</div>
+                        <div class="track-code">${code}</div>
+                        <div>🔐 Сохраните его для проверки</div>
+                    </div>
+                    <button class="btn-outline" id="goToCheck">🔍 Проверить статус</button>
+                </div>
+            `;
+            form.reset();
+            document.querySelector('input[name="anon"][value="anon"]').checked = true;
+            fioGroup.style.display = 'none';
+            fileInput.value = '';
+            document.getElementById('goToCheck')?.addEventListener('click', () => {
+                document.querySelector('.tab[data-tab="check"]').click();
+                document.getElementById('statusCode').value = code;
+            });
+        } catch (err) {
+            apiStatus.innerText = '❌ Ошибка API';
+            alert('Не удалось отправить. Проверьте интернет и настройки MockAPI.');
+        }
+    });
+
+    const checkBtn = document.getElementById('checkStatusBtn');
+    const statusCodeInput = document.getElementById('statusCode');
+    const statusResult = document.getElementById('statusResult');
+
+    checkBtn.addEventListener('click', async () => {
+        const code = statusCodeInput.value.trim().toUpperCase();
+        if (!code) { alert('Введите код'); return; }
+        const report = await getReport(code);
+        if (!report) {
+            statusResult.style.display = 'block';
+            statusResult.innerHTML = `<div style="color:#b91c1c;">❌ Обращение не найдено</div>`;
+            return;
+        }
+        const statusStyle = {
+            waiting: '⏳ Ожидает внимания',
+            work: '🔄 В работе',
+            verify: '🔍 В проверке',
+            rejected: '❌ Отклонено',
+            resolved: '✅ Меры приняты'
+        }[report.statusKey] || report.status;
+        let extra = '';
+        if (report.resolutionText) {
+            extra = `<div style="background:#fef9e3; padding:12px; border-radius:12px; margin-top:12px;"><strong>📌 ${report.statusKey === 'rejected' ? 'Причина' : 'Принятые меры'}:</strong><br>${report.resolutionText}</div>`;
+        }
+        statusResult.style.display = 'block';
+        statusResult.innerHTML = `
+            <div style="background:white; border-radius:16px; padding:20px;">
+                <div>Код: ${code}</div>
+                <div style="margin:12px 0;"><strong>${statusStyle}</strong></div>
+                <div>Категория: ${report.category}</div>
+                <div>Дата: ${report.createdAt}</div>
+                ${extra}
+            </div>
+        `;
+    });
+</script>
+</body>
+</html>
