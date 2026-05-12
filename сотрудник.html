@@ -131,7 +131,11 @@
             let filesHtml = '—';
             if (r.attachments && r.attachments.length) {
                 filesHtml = r.attachments.map(f => {
-                    if (f.url) {
+                    if (f.base64) {
+                        const mimeType = f.type || 'application/octet-stream';
+                        const dataUrl = `data:${mimeType};base64,${f.base64}`;
+                        return `<a href="${dataUrl}" download="${f.name}" class="file-link">📎 ${f.name}</a>`;
+                    } else if (f.url) {
                         return `<a href="${f.url}" target="_blank" class="file-link" download>📎 ${f.name}</a>`;
                     } else {
                         return `<span class="file-link">📎 ${f.name}</span>`;
