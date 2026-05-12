@@ -95,7 +95,6 @@
     const RESOURCE = 'reports';
     // ===================================
 
-    // Переключение вкладок
     document.querySelectorAll('.tab').forEach(tab => {
         tab.addEventListener('click', () => {
             const target = tab.dataset.tab;
@@ -106,7 +105,6 @@
         });
     });
 
-    // Показать поле ФИО при неанонимном режиме
     const radios = document.querySelectorAll('input[name="anon"]');
     const fioGroup = document.getElementById('fioGroup');
     radios.forEach(radio => {
@@ -115,7 +113,6 @@
         });
     });
 
-    // Генерация кода в формате XK9-3M7P
     function generateCode() {
         const letters = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
         const digits = '0123456789';
@@ -128,7 +125,6 @@
         return part1 + '-' + part2;
     }
 
-    // Отправка в API
     async function createReport(data) {
         const res = await fetch(`${API_BASE}/${RESOURCE}`, {
             method: 'POST',
@@ -139,17 +135,15 @@
         return res.json();
     }
 
-    // Получить все обращения
     async function getAllReports() {
         const res = await fetch(`${API_BASE}/${RESOURCE}`);
         if (!res.ok) return [];
         return res.json();
     }
 
-    // Получить обращение по коду (id)
     async function getReportByCode(code) {
         const all = await getAllReports();
-        return all.find(r => r.id === code) || null;
+        return all.find(r => r.reportCode === code) || null;
     }
 
     const form = document.getElementById('complianceForm');
@@ -176,16 +170,15 @@
                 name: file.name, 
                 size: file.size, 
                 type: file.type, 
-                tooBig: file.size > 500 * 1024,
-                content: null
+                tooBig: file.size > 500 * 1024
             }];
         }
         
-        const code = generateCode();
+        const reportCode = generateCode();
         const now = new Date().toLocaleString();
         
         const newReport = {
-            id: code,
+            reportCode: reportCode,      // ← наш буквенно-цифровой код
             status: 'Ожидает внимания комплаенс-офицера',
             statusKey: 'waiting',
             category: category,
@@ -211,7 +204,7 @@
                     <div style="font-size:20px; font-weight:bold; color:#2d6a4f;">✅ Обращение принято</div>
                     <div class="track-code-display">
                         <div style="font-size:13px;">ВАШ КОД ДЛЯ ПРОВЕРКИ СТАТУСА</div>
-                        <div class="track-code">${code}</div>
+                        <div class="track-code">${reportCode}</div>
                         <div style="font-size:13px; margin-top:10px;">🔐 Сохраните этот код. Он нужен для проверки статуса.</div>
                     </div>
                     <div style="margin-top:16px;">
@@ -230,14 +223,13 @@
             
             document.getElementById('goToCheckBtn')?.addEventListener('click', () => {
                 document.querySelector('.tab[data-tab="check"]').click();
-                document.getElementById('statusCode').value = code;
+                document.getElementById('statusCode').value = reportCode;
             });
             
         } catch (err) {
-            apiStatus.innerText = '❌ Ошибка API. Проверьте интернет и настройки MockAPI.';
+            apiStatus.innerText = '❌ Ошибка API';
             apiStatus.style.background = '#fee2e2';
-            console.error(err);
-            alert('Не удалось отправить обращение. Проверьте соединение с интернетом.');
+            alert('Не удалось отправить обращение.');
         }
     });
 
@@ -252,7 +244,7 @@
             case 'verify': return `<span style="background:#e0e7ff; color:#3730a3; padding:4px 12px; border-radius:20px;">🔍 ${statusText}</span>`;
             case 'rejected': return `<span style="background:#fee2e2; color:#991b1b; padding:4px 12px; border-radius:20px;">❌ ${statusText}</span>`;
             case 'resolved': return `<span style="background:#dcfce7; color:#166534; padding:4px 12px; border-radius:20px;">✅ ${statusText}</span>`;
-            default: return `<span style="background:#e2e8f0; padding:4px 12px; border-radius:20px;">${statusText}</span>`;
+            default: return `<span>${statusText}</span>`;
         }
     }
 
@@ -284,8 +276,6 @@
                 resolutionHtml = `<div style="background:#fef9e3; padding:12px; border-radius:12px; margin-top:12px;"><strong>📌 Причина отклонения:</strong><br>${report.resolutionText}</div>`;
             } else if (report.statusKey === 'resolved') {
                 resolutionHtml = `<div style="background:#fef9e3; padding:12px; border-radius:12px; margin-top:12px;"><strong>📌 Принятые меры:</strong><br>${report.resolutionText}</div>`;
-            } else if (report.resolutionText) {
-                resolutionHtml = `<div style="background:#f8fafc; padding:12px; border-radius:12px; margin-top:12px;"><strong>💬 Комментарий:</strong><br>${report.resolutionText}</div>`;
             }
         }
         
