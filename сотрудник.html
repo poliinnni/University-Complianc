@@ -8,28 +8,30 @@
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: system-ui, sans-serif; background: #0f172a; padding: 24px; }
         .dashboard { max-width: 1400px; margin: 0 auto; }
-        .header { background: white; border-radius: 20px; padding: 20px; margin-bottom: 24px; display: flex; justify-content: space-between; flex-wrap: wrap; }
+        .header { background: white; border-radius: 20px; padding: 20px; margin-bottom: 24px; display: flex; justify-content: space-between; flex-wrap: wrap; align-items: center; }
         .stats { display: flex; gap: 16px; }
-        .stat-card { background: #f1f5f9; padding: 8px 20px; border-radius: 40px; }
-        .controls { margin-bottom: 20px; display: flex; gap: 12px; flex-wrap: wrap; }
-        .btn { background: white; border: 1px solid #cbd5e1; padding: 8px 20px; border-radius: 40px; cursor: pointer; }
+        .stat-card { background: #f1f5f9; padding: 8px 20px; border-radius: 40px; font-size: 14px; font-weight: 500; }
+        .controls { margin-bottom: 20px; display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+        .btn { background: white; border: 1px solid #cbd5e1; padding: 8px 20px; border-radius: 40px; cursor: pointer; font-weight: 500; }
         .btn-primary { background: #0f2b3d; color: white; border: none; }
-        .export-btn { background: #2d6a4f; color: white; }
-        table { width: 100%; background: white; border-radius: 20px; border-collapse: collapse; }
+        .export-btn { background: #2d6a4f; color: white; border: none; }
+        table { width: 100%; background: white; border-radius: 20px; border-collapse: collapse; overflow-x: auto; display: block; }
         th, td { padding: 12px 10px; text-align: left; border-bottom: 1px solid #e2e8f0; font-size: 13px; vertical-align: top; }
-        th { background: #f8fafc; }
-        .status-badge { display: inline-block; padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 500; }
+        th { background: #f8fafc; font-weight: 600; }
+        .status-badge { display: inline-block; padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 500; white-space: nowrap; }
         .status-wait { background: #fef3c7; color: #92400e; }
         .status-work { background: #dbeafe; color: #1e40af; }
         .status-verify { background: #e0e7ff; color: #3730a3; }
         .status-rejected { background: #fee2e2; color: #991b1b; }
         .status-resolved { background: #dcfce7; color: #166534; }
-        select.status-select { padding: 4px; border-radius: 20px; font-size: 11px; }
+        select.status-select { padding: 4px 8px; border-radius: 20px; border: 1px solid #cbd5e1; font-size: 11px; }
         .file-link { background: #eef2ff; padding: 2px 8px; border-radius: 12px; font-size: 11px; cursor: pointer; display: inline-block; margin: 2px; }
-        .modal { display: none; position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.5); justify-content: center; align-items: center; }
+        .file-link:hover { background: #cbd5e1; }
+        .modal { display: none; position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.5); justify-content: center; align-items: center; z-index: 1000; }
         .modal-content { background: white; border-radius: 24px; padding: 24px; width: 500px; max-width: 90%; }
-        .modal-content textarea { width: 100%; padding: 12px; margin: 16px 0; border-radius: 12px; }
+        .modal-content textarea { width: 100%; padding: 12px; margin: 16px 0; border-radius: 12px; font-family: inherit; }
         footer { text-align: center; margin-top: 24px; color: #94a3b8; font-size: 12px; }
+        .api-status { background: #f1f5f9; border-radius: 12px; padding: 8px 16px; font-size: 12px; margin-right: auto; }
     </style>
 </head>
 <body>
@@ -43,25 +45,29 @@
         </div>
     </div>
     <div class="controls">
+        <div class="api-status" id="apiStatusMsg">🌐 Данные из MockAPI</div>
         <button class="btn" id="refreshBtn">🔄 Обновить</button>
         <button class="btn export-btn" id="exportExcelBtn">📎 Экспорт Excel</button>
         <button class="btn" id="toggleFilterBtn">🔘 Скрыть завершённые</button>
         <button class="btn" id="clearAllBtn" style="color:#b91c1c;">⚠️ Очистить все (тест)</button>
     </div>
     <div style="overflow-x: auto;">
-        <table id="reportsTable">
-            <thead><tr><th>Код</th><th>Категория</th><th>Описание</th><th>Дата</th><th>Анонимно</th><th>ФИО</th><th>Файлы</th><th>Статус</th><th>Действия</th></tr></thead>
-            <tbody id="reportsBody"><tr><td colspan="9">Загрузка...</td></tr></tbody>
+        <table id="reportsTable" style="min-width: 1000px;">
+            <thead>
+                <tr><th>Код</th><th>Категория</th><th>Описание</th><th>Дата</th><th>Анонимно</th><th>ФИО</th><th>Файлы</th><th>Статус</th><th>Действия</th></tr>
+            </thead>
+            <tbody id="reportsBody"><tr><td colspan="9">Загрузка...</td></tr>
+            </tbody>
         </table>
     </div>
-    <footer>Нажмите на файл для скачивания (демо).</footer>
+    <footer>Нажмите на имя файла — в реальной системе будет скачивание. Данные синхронизируются через MockAPI.</footer>
 </div>
 
 <div id="resolutionModal" class="modal">
     <div class="modal-content">
         <h3 id="modalTitle">Указать причину или меры</h3>
         <p id="modalHint"></p>
-        <textarea id="resolutionText" rows="3"></textarea>
+        <textarea id="resolutionText" rows="3" placeholder="Введите текст..."></textarea>
         <input type="hidden" id="modalCode">
         <input type="hidden" id="modalNewStatusKey">
         <button class="btn btn-primary" id="saveResolutionBtn">Сохранить</button>
@@ -75,9 +81,16 @@
     let hideCompleted = false;
 
     async function fetchReports() {
-        const res = await fetch(`${API_BASE}/${RESOURCE}`);
-        if (!res.ok) throw new Error('API error');
-        return res.json();
+        try {
+            const res = await fetch(`${API_BASE}/${RESOURCE}`);
+            if (!res.ok) throw new Error('API error: ' + res.status);
+            return await res.json();
+        } catch (err) {
+            console.error(err);
+            document.getElementById('apiStatusMsg').innerText = '❌ Ошибка загрузки из API';
+            document.getElementById('apiStatusMsg').style.background = '#fee2e2';
+            return [];
+        }
     }
 
     async function updateReport(code, data) {
@@ -97,61 +110,65 @@
         }
     }
 
-    function downloadFile(content, name) {
-        const a = document.createElement('a');
-        a.href = content;
-        a.download = name;
-        a.click();
-    }
-
     async function renderTable() {
         let reports = await fetchReports();
-        if (hideCompleted) {
-            reports = reports.filter(r => r.statusKey !== 'rejected' && r.statusKey !== 'resolved');
-        }
-        const tbody = document.getElementById('reportsBody');
         if (!reports.length) {
-            tbody.innerHTML = '<tr><td colspan="9">Нет обращений</td></tr>';
-            updateStats(await fetchReports());
+            document.getElementById('reportsBody').innerHTML = '<tr><td colspan="9">📭 Нет обращений</td></tr>';
+            updateStats([]);
             return;
         }
+        
+        let filtered = [...reports];
+        if (hideCompleted) {
+            filtered = filtered.filter(r => r.statusKey !== 'rejected' && r.statusKey !== 'resolved');
+        }
+        
+        const tbody = document.getElementById('reportsBody');
+        if (filtered.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="9">📭 Нет обращений (или все завершённые скрыты)</td></tr>';
+            updateStats(reports);
+            return;
+        }
+        
         let html = '';
-        for (let r of reports) {
+        for (let r of filtered) {
             const statusClass = `status-${r.statusKey}`;
             const fioDisplay = (r.isAnon === false && r.fio) ? r.fio : '—';
             let filesHtml = '—';
             if (r.attachments && r.attachments.length) {
                 filesHtml = r.attachments.map(f => {
-                    if (f.content && !f.tooBig) {
-                        return `<span class="file-link" onclick="downloadFile('${f.content}','${f.name}')">📎 ${f.name}</span>`;
-                    } else {
-                        return `<span class="file-link" onclick="alert('Файл только в демо')">📎 ${f.name}</span>`;
-                    }
+                    return `<span class="file-link" onclick="alert('В реальной системе файл «${f.name}» будет доступен для скачивания.')">📎 ${f.name}</span>`;
                 }).join('<br>');
             }
+            
+            const shortDesc = (r.description || '').substring(0, 60);
+            const descText = shortDesc + (r.description?.length > 60 ? '…' : '');
+            
             html += `<tr>
                 <td><code>${r.id}</code></td>
                 <td>${r.category || ''}</td>
-                <td>${(r.description || '').substring(0,60)}${r.description?.length>60?'…':''}</td>
-                <td>${r.createdAt || ''}</td>
+                <td>${descText}</td>
+                <td style="white-space:nowrap">${r.createdAt || ''}</td>
                 <td>${r.isAnon ? '🔒 Да' : '👤 Нет'}</td>
                 <td>${fioDisplay}</td>
                 <td>${filesHtml}</td>
                 <td><span class="status-badge ${statusClass}">${r.status}</span></td>
                 <td>
                     <select class="status-select" data-code="${r.id}">
-                        <option value="waiting" ${r.statusKey==='waiting'?'selected':''}>⏳ Ожидает</option>
-                        <option value="work" ${r.statusKey==='work'?'selected':''}>🔄 В работе</option>
-                        <option value="verify" ${r.statusKey==='verify'?'selected':''}>🔍 В проверке</option>
-                        <option value="rejected" ${r.statusKey==='rejected'?'selected':''}>❌ Отклонено</option>
-                        <option value="resolved" ${r.statusKey==='resolved'?'selected':''}>✅ Меры приняты</option>
+                        <option value="waiting" ${r.statusKey === 'waiting' ? 'selected' : ''}>⏳ Ожидает</option>
+                        <option value="work" ${r.statusKey === 'work' ? 'selected' : ''}>🔄 В работе</option>
+                        <option value="verify" ${r.statusKey === 'verify' ? 'selected' : ''}>🔍 В проверке</option>
+                        <option value="rejected" ${r.statusKey === 'rejected' ? 'selected' : ''}>❌ Отклонено</option>
+                        <option value="resolved" ${r.statusKey === 'resolved' ? 'selected' : ''}>✅ Меры приняты</option>
                     </select>
                 </td>
             </tr>`;
         }
         tbody.innerHTML = html;
         attachStatusEvents();
-        updateStats(await fetchReports());
+        updateStats(reports);
+        document.getElementById('apiStatusMsg').innerText = '✅ Данные загружены из API';
+        document.getElementById('apiStatusMsg').style.background = '#dcfce7';
     }
 
     function attachStatusEvents() {
@@ -167,20 +184,23 @@
         const reports = await fetchReports();
         const report = reports.find(r => r.id === code);
         if (!report) return;
-        let needReason = (newKey === 'rejected' || newKey === 'resolved');
+        
+        const needReason = (newKey === 'rejected' || newKey === 'resolved');
         if (needReason) {
             document.getElementById('modalCode').value = code;
             document.getElementById('modalNewStatusKey').value = newKey;
             document.getElementById('modalTitle').innerText = newKey === 'rejected' ? '❌ Причина отклонения' : '✅ Принятые меры';
-            document.getElementById('modalHint').innerText = newKey === 'rejected' ? 'Укажите причину' : 'Опишите меры';
+            document.getElementById('modalHint').innerText = newKey === 'rejected' ? 'Укажите причину отклонения' : 'Опишите принятые меры';
             document.getElementById('resolutionText').value = '';
             document.getElementById('resolutionModal').style.display = 'flex';
             return;
         }
+        
         let newStatusText = '';
         if (newKey === 'waiting') newStatusText = 'Ожидает внимания комплаенс-офицера';
         else if (newKey === 'work') newStatusText = 'В работе';
         else if (newKey === 'verify') newStatusText = 'В проверке';
+        
         report.statusKey = newKey;
         report.status = newStatusText;
         report.updatedAt = new Date().toLocaleString();
@@ -194,6 +214,7 @@
         const newKey = document.getElementById('modalNewStatusKey').value;
         const text = document.getElementById('resolutionText').value.trim();
         if (!text) { alert('Заполните поле'); return; }
+        
         const reports = await fetchReports();
         const report = reports.find(r => r.id === code);
         if (report) {
@@ -209,6 +230,13 @@
 
     document.getElementById('closeModalBtn').addEventListener('click', () => {
         document.getElementById('resolutionModal').style.display = 'none';
+    });
+    
+    window.addEventListener('click', (e) => {
+        const modal = document.getElementById('resolutionModal');
+        if (e.target === modal) {
+            modal.style.display = 'none';
+        }
     });
 
     async function updateStats(allReports) {
@@ -229,27 +257,36 @@
         document.getElementById('toggleFilterBtn').innerText = hideCompleted ? '🔘 Показать все' : '🔘 Скрыть завершённые';
         renderTable();
     });
+    
     document.getElementById('exportExcelBtn').addEventListener('click', async () => {
         let reports = await fetchReports();
-        let csvRows = [['Код','Категория','Описание','Дата','Анонимно','ФИО','Статус','Решение','Файлы','Обновлено']];
+        if (reports.length === 0) { alert('Нет данных для экспорта'); return; }
+        let rows = [['Код','Категория','Описание','Дата','Анонимно','ФИО','Статус','Решение','Файлы','Обновлено']];
         for (let r of reports) {
-            let files = r.attachments?.map(f=>f.name).join('; ') || '';
-            csvRows.push([r.id, r.category, r.description, r.createdAt, r.isAnon?'Да':'Нет', r.isAnon?'—':(r.fio||'—'), r.status, r.resolutionText||'', files, r.updatedAt]);
+            let files = r.attachments?.map(f => f.name).join('; ') || '';
+            let fioValue = (r.isAnon === false && r.fio) ? r.fio : '—';
+            rows.push([
+                r.id, r.category || '', (r.description || '').replace(/"/g, '""'), 
+                r.createdAt || '', r.isAnon ? 'Да' : 'Нет', fioValue, 
+                r.status || '', r.resolutionText || '', files, r.updatedAt || ''
+            ]);
         }
-        const csv = csvRows.map(row => row.map(cell => `"${String(cell).replace(/"/g,'""')}"`).join(',')).join('\n');
-        const blob = new Blob(["\uFEFF"+csv], {type:'text/csv'});
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = 'reports.csv';
-        a.click();
+        const csv = rows.map(row => row.map(cell => `"${cell}"`).join(',')).join('\n');
+        const blob = new Blob(["\uFEFF" + csv], {type: 'text/csv;charset=utf-8;'});
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = 'compliance_reports.csv';
+        link.click();
         URL.revokeObjectURL(blob);
     });
+    
     document.getElementById('clearAllBtn').addEventListener('click', async () => {
-        if (confirm('Удалить ВСЕ обращения?')) {
+        if (confirm('⚠️ Удалить ВСЕ обращения? Это действие необратимо.')) {
             await deleteAll();
             renderTable();
         }
     });
+    
     renderTable();
 </script>
 </body>
