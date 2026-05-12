@@ -44,7 +44,7 @@
             <div class="tab" data-tab="check">🔍 Проверить статус по коду</div>
         </div>
         <div id="tab-report" class="tab-content active">
-            <div class="api-status" id="apiStatusMsg">🌐 Данные синхронизируются через MockAPI</div>
+            <div class="api-status" id="apiStatusMsg">💾 Данные сохраняются в браузере</div>
             <form id="complianceForm">
                 <div class="form-group">
                     <label>Категория нарушения</label>
@@ -65,7 +65,7 @@
                 <div class="form-group">
                     <label>Прикрепить файлы (скриншоты, документы)</label>
                     <input type="file" id="fileInput">
-                    <div style="font-size:12px;">Файл сохранится в системе (до 500 КБ)</div>
+                    <div style="font-size:12px;">Файлы до 2 МБ, сохраняются локально</div>
                     <div id="uploadProgress" class="upload-progress"></div>
                 </div>
                 <div class="form-group">
@@ -92,8 +92,26 @@
 </div>
 
 <script>
-    const API_BASE = 'https://6a0348792afe8349b4b4f53c.mockapi.io';
-    const RESOURCE = 'reports';
+    // ========== ХРАНЕНИЕ В LOCALSTORAGE ==========
+    function loadReports() {
+        const data = localStorage.getItem('complianceReports');
+        return data ? JSON.parse(data) : {};
+    }
+    function saveReports(reports) {
+        localStorage.setItem('complianceReports', JSON.stringify(reports));
+    }
+
+    function getReportByCode(code) {
+        const reports = loadReports();
+        return reports[code] || null;
+    }
+
+    function saveReport(code, report) {
+        const reports = loadReports();
+        reports[code] = report;
+        saveReports(reports);
+    }
+    // ===========================================
 
     document.querySelectorAll('.tab').forEach(tab => {
         tab.addEventListener('click', () => {
@@ -132,27 +150,6 @@
             reader.onerror = (err) => reject(err);
             reader.readAsDataURL(file);
         });
-    }
-
-    async function createReport(data) {
-        const res = await fetch(`${API_BASE}/${RESOURCE}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(data)
-        });
-        if (!res.ok) throw new Error('Ошибка API: ' + res.status);
-        return res.json();
-    }
-
-    async function getAllReports() {
-        const res = await fetch(`${API_BASE}/${RESOURCE}`);
-        if (!res.ok) return [];
-        return res.json();
-    }
-
-    async function getReportByCode(code) {
-        const all = await getAllReports();
-        return all.find(r => r.id === code) || null;
     }
 
     const form = document.getElementById('complianceForm');
@@ -210,23 +207,23 @@
             attachments: attachments
         };
 
-        apiStatus.innerText = '⏳ Отправка в MockAPI...';
+        apiStatus.innerText = '⏳ Сохранение...';
         apiStatus.style.background = '#fef3c7';
         
         try {
-            await createReport(newReport);
-            apiStatus.innerText = '✅ Сохранено в API';
+            saveReport(code, newReport);
+            apiStatus.innerText = '✅ Сохранено';
             apiStatus.style.background = '#dcfce7';
             
             submitResult.innerHTML = `
                 <div class="status-card" style="background:#e8f5e9;">
                     <div style="font-size:20px; font-weight:bold; color:#2d6a4f;">✅ Обращение принято</div>
                     <div class="track-code-display">
-                        <div style="font-size:13px;">ВАШ КОД ДЛЯ ПРОВЕРКИ СТАТУСА</div>
+                        <div style="font-size:13px;">ВАШ КОД</div>
                         <div class="track-code">${code}</div>
-                        <div style="font-size:13px; margin-top:10px;">🔐 Сохраните этот код.</div>
+                        <div style="font-size:13px; margin-top:10px;">Сохраните код для проверки</div>
                     </div>
-                    <button class="btn-outline" id="goToCheckBtn">🔍 Перейти к проверке статуса</button>
+                    <button class="btn-outline" id="goToCheckBtn">Перейти к проверке</button>
                 </div>
             `;
             
@@ -242,9 +239,9 @@
             });
             
         } catch (err) {
-            apiStatus.innerText = '❌ Ошибка API';
+            apiStatus.innerText = '❌ Ошибка';
             apiStatus.style.background = '#fee2e2';
-            alert('Не удалось отправить обращение.');
+            alert('Ошибка сохранения.');
         }
     });
 
@@ -254,12 +251,12 @@
 
     function getStatusBadge(statusKey, statusText) {
         switch(statusKey) {
-            case 'waiting': return `<span style="background:#fef3c7; color:#92400e; padding:4px 12px; border-radius:20px;">⏳ ${statusText}</span>`;
-            case 'work': return `<span style="background:#dbeafe; color:#1e40af; padding:4px 12px; border-radius:20px;">🔄 ${statusText}</span>`;
-            case 'verify': return `<span style="background:#e0e7ff; color:#3730a3; padding:4px 12px; border-radius:20px;">🔍 ${statusText}</span>`;
-            case 'rejected': return `<span style="background:#fee2e2; color:#991b1b; padding:4px 12px; border-radius:20px;">❌ ${statusText}</span>`;
-            case 'resolved': return `<span style="background:#dcfce7; color:#166534; padding:4px 12px; border-radius:20px;">✅ ${statusText}</span>`;
-            default: return `<span>${statusText}</span>`;
+            case 'waiting': return `⏳ ${statusText}`;
+            case 'work': return `🔄 ${statusText}`;
+            case 'verify': return `🔍 ${statusText}`;
+            case 'rejected': return `❌ ${statusText}`;
+            case 'resolved': return `✅ ${statusText}`;
+            default: return statusText;
         }
     }
 
@@ -268,9 +265,9 @@
         if (!code) { alert('Введите код'); return; }
         
         statusResult.style.display = 'block';
-        statusResult.innerHTML = '<div>⏳ Загрузка...</div>';
+        statusResult.innerHTML = 'Загрузка...';
         
-        const report = await getReportByCode(code);
+        const report = getReportByCode(code);
         if (!report) {
             statusResult.innerHTML = `<div style="color:#b91c1c;">❌ Обращение не найдено</div>`;
             return;
@@ -278,15 +275,15 @@
         
         let resolutionHtml = '';
         if (report.resolutionText) {
-            resolutionHtml = `<div style="background:#fef9e3; padding:12px; border-radius:12px;"><strong>📌 ${report.statusKey === 'rejected' ? 'Причина' : 'Меры'}:</strong><br>${report.resolutionText}</div>`;
+            resolutionHtml = `<div style="background:#fef9e3; padding:12px; margin-top:12px;"><strong>${report.statusKey === 'rejected' ? 'Причина' : 'Меры'}:</strong><br>${report.resolutionText}</div>`;
         }
         
         statusResult.innerHTML = `
-            <div style="background:white; padding:20px; border-radius:16px;">
-                <div>Код: ${code}</div>
-                <div>${getStatusBadge(report.statusKey, report.status)}</div>
-                <div>Категория: ${report.category}</div>
-                <div>Дата: ${report.createdAt}</div>
+            <div style="background:white; padding:16px; border-radius:16px;">
+                <div><strong>Код:</strong> ${code}</div>
+                <div><strong>Статус:</strong> ${getStatusBadge(report.statusKey, report.status)}</div>
+                <div><strong>Категория:</strong> ${report.category}</div>
+                <div><strong>Дата:</strong> ${report.createdAt}</div>
                 ${resolutionHtml}
             </div>
         `;
