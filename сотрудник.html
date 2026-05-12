@@ -58,7 +58,7 @@
             </thead>
             <tbody id="reportsBody"><tr><td colspan="9">Загрузка...</td></tr>
             </tbody>
-        </table>
+        没关系
     </div>
     <footer>Нажмите на имя файла — в реальной системе будет скачивание. Данные синхронизируются через MockAPI.</footer>
 </div>
@@ -84,7 +84,8 @@
         try {
             const res = await fetch(`${API_BASE}/${RESOURCE}`);
             if (!res.ok) throw new Error('API error: ' + res.status);
-            return await res.json();
+            const data = await res.json();
+            return Array.isArray(data) ? data : [];
         } catch (err) {
             console.error(err);
             document.getElementById('apiStatusMsg').innerText = '❌ Ошибка загрузки из API';
@@ -103,10 +104,23 @@
         return res.json();
     }
 
-    async function deleteAll() {
+    async function deleteReport(code) {
+        const res = await fetch(`${API_BASE}/${RESOURCE}/${code}`, {
+            method: 'DELETE'
+        });
+        if (!res.ok) throw new Error('Delete failed');
+        return res.json();
+    }
+
+    async function deleteAllReports() {
         const reports = await fetchReports();
+        if (!reports.length) return;
         for (let r of reports) {
-            await fetch(`${API_BASE}/${RESOURCE}/${r.id}`, { method: 'DELETE' });
+            try {
+                await deleteReport(r.id);
+            } catch(e) {
+                console.error('Ошибка удаления', r.id, e);
+            }
         }
     }
 
@@ -115,6 +129,8 @@
         if (!reports.length) {
             document.getElementById('reportsBody').innerHTML = '<tr><td colspan="9">📭 Нет обращений</td></tr>';
             updateStats([]);
+            document.getElementById('apiStatusMsg').innerText = '✅ Данные загружены (пусто)';
+            document.getElementById('apiStatusMsg').style.background = '#dcfce7';
             return;
         }
         
@@ -282,7 +298,7 @@
     
     document.getElementById('clearAllBtn').addEventListener('click', async () => {
         if (confirm('⚠️ Удалить ВСЕ обращения? Это действие необратимо.')) {
-            await deleteAll();
+            await deleteAllReports();
             renderTable();
         }
     });
