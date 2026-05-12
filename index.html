@@ -24,7 +24,7 @@
         .info-box { background: #eef2ff; padding: 16px; border-radius: 16px; font-size: 14px; margin-top: 16px; text-align: center; }
         .status-card { background: #f1f5f9; border-radius: 16px; padding: 20px; margin-top: 16px; }
         .track-code-display { background: white; border: 2px dashed #2d6a4f; border-radius: 16px; text-align: center; margin: 16px 0; padding: 16px; }
-        .track-code { font-size: 36px; font-weight: 800; letter-spacing: 2px; }
+        .track-code { font-size: 36px; font-weight: 800; letter-spacing: 2px; font-family: monospace; }
         .btn-outline { background: transparent; border: 1px solid #cbd5e1; color: #0f2b3d; margin-top: 12px; }
         footer { text-align: center; margin-top: 24px; font-size: 13px; color: #64748b; }
         .api-status { background: #f1f5f9; border-radius: 12px; padding: 8px; font-size: 12px; margin-bottom: 16px; text-align: center; }
@@ -59,7 +59,7 @@
                 </div>
                 <div class="form-group">
                     <label>Описание ситуации</label>
-                    <textarea rows="5" id="description" required></textarea>
+                    <textarea rows="5" id="description" placeholder="Что произошло? Укажите время, место, обстоятельства..." required></textarea>
                 </div>
                 <div class="form-group">
                     <label>Прикрепить файлы (скриншоты, документы)</label>
@@ -74,26 +74,26 @@
                     </div>
                 </div>
                 <div id="fioGroup" style="display:none;">
-                    <div class="form-group"><label>ФИО</label><input type="text" id="fio"></div>
+                    <div class="form-group"><label>ФИО</label><input type="text" id="fio" placeholder="Иванов Иван Иванович"></div>
                 </div>
                 <button type="submit">✉️ Отправить</button>
             </form>
             <div id="submitResult"></div>
         </div>
         <div id="tab-check" class="tab-content">
-            <div class="form-group"><label>Ваш код</label><input type="text" id="statusCode" placeholder="Например: X9K-3M7P"></div>
+            <div class="form-group"><label>Ваш код (например: XK9-3M7P)</label><input type="text" id="statusCode" placeholder="XK9-3M7P" style="text-transform:uppercase;"></div>
             <button id="checkStatusBtn">🔍 Проверить статус</button>
             <div id="statusResult" class="status-card" style="display:none;"></div>
         </div>
     </div>
-    <footer>Политика нерепрессалий</footer>
+    <footer>Политика нерепрессалий: за добросовестное сообщение о нарушении вы не будете наказаны.</footer>
 </div>
 
 <script>
-    // ========== НАСТРОЙКА API (ВАШ АДРЕС) ==========
+    // ========== НАСТРОЙКА API ==========
     const API_BASE = 'https://6a0348792afe8349b4b4f53c.mockapi.io';
     const RESOURCE = 'reports';
-    // ===============================================
+    // ===================================
 
     // Переключение вкладок
     document.querySelectorAll('.tab').forEach(tab => {
@@ -115,10 +115,17 @@
         });
     });
 
-    // Генерация кода
+    // Генерация кода в формате XK9-3M7P
     function generateCode() {
-        return 'X' + Math.random().toString(36).substring(2,5).toUpperCase() + 
-               '-' + Math.random().toString(36).substring(2,5).toUpperCase();
+        const letters = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+        const digits = '0123456789';
+        const part1 = letters[Math.floor(Math.random() * letters.length)] + 
+                      letters[Math.floor(Math.random() * letters.length)] + 
+                      digits[Math.floor(Math.random() * digits.length)];
+        const part2 = digits[Math.floor(Math.random() * digits.length)] + 
+                      letters[Math.floor(Math.random() * letters.length)] + 
+                      digits[Math.floor(Math.random() * digits.length)];
+        return part1 + '-' + part2;
     }
 
     // Отправка в API
@@ -128,15 +135,20 @@
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(data)
         });
-        if (!res.ok) throw new Error('Ошибка API');
+        if (!res.ok) throw new Error('Ошибка API: ' + res.status);
+        return res.json();
+    }
+
+    // Получить все обращения
+    async function getAllReports() {
+        const res = await fetch(`${API_BASE}/${RESOURCE}`);
+        if (!res.ok) return [];
         return res.json();
     }
 
     // Получить обращение по коду (id)
-    async function getReport(code) {
-        const res = await fetch(`${API_BASE}/${RESOURCE}`);
-        if (!res.ok) return null;
-        const all = await res.json();
+    async function getReportByCode(code) {
+        const all = await getAllReports();
         return all.find(r => r.id === code) || null;
     }
 
@@ -151,54 +163,81 @@
         const description = document.getElementById('description').value;
         const isAnon = document.querySelector('input[name="anon"]:checked').value === 'anon';
         const fio = document.getElementById('fio').value;
-        if (!category || !description) { alert('Заполните категорию и описание'); return; }
+        
+        if (!category || !description) { 
+            alert('Заполните категорию и описание'); 
+            return; 
+        }
 
         let attachments = [];
         if (fileInput.files.length) {
             const file = fileInput.files[0];
-            attachments = [{ name: file.name, size: file.size, type: file.type, tooBig: file.size > 500*1024 }];
+            attachments = [{ 
+                name: file.name, 
+                size: file.size, 
+                type: file.type, 
+                tooBig: file.size > 500 * 1024,
+                content: null
+            }];
         }
+        
         const code = generateCode();
+        const now = new Date().toLocaleString();
+        
         const newReport = {
             id: code,
             status: 'Ожидает внимания комплаенс-офицера',
             statusKey: 'waiting',
-            category,
-            description: description.slice(0,500),
-            isAnon,
+            category: category,
+            description: description.substring(0, 500),
+            isAnon: isAnon,
             fio: isAnon ? null : fio,
-            createdAt: new Date().toLocaleString(),
-            updatedAt: new Date().toLocaleString(),
+            createdAt: now,
+            updatedAt: now,
             resolutionText: null,
-            attachments
+            attachments: attachments
         };
 
         apiStatus.innerText = '⏳ Отправка...';
+        apiStatus.style.background = '#fef3c7';
+        
         try {
             await createReport(newReport);
             apiStatus.innerText = '✅ Сохранено в API';
+            apiStatus.style.background = '#dcfce7';
+            
             submitResult.innerHTML = `
                 <div class="status-card" style="background:#e8f5e9;">
-                    <div style="font-size:20px;">✅ Обращение принято</div>
+                    <div style="font-size:20px; font-weight:bold; color:#2d6a4f;">✅ Обращение принято</div>
                     <div class="track-code-display">
-                        <div>ВАШ КОД</div>
+                        <div style="font-size:13px;">ВАШ КОД ДЛЯ ПРОВЕРКИ СТАТУСА</div>
                         <div class="track-code">${code}</div>
-                        <div>🔐 Сохраните его для проверки</div>
+                        <div style="font-size:13px; margin-top:10px;">🔐 Сохраните этот код. Он нужен для проверки статуса.</div>
                     </div>
-                    <button class="btn-outline" id="goToCheck">🔍 Проверить статус</button>
+                    <div style="margin-top:16px;">
+                        <strong>Что дальше?</strong><br>
+                        • Комплаенс-офицер проверит обращение (до 3 рабочих дней)<br>
+                        • Вы можете проверить статус во вкладке <strong>«Проверить статус по коду»</strong>
+                    </div>
+                    <button class="btn-outline" id="goToCheckBtn">🔍 Перейти к проверке статуса</button>
                 </div>
             `;
+            
             form.reset();
             document.querySelector('input[name="anon"][value="anon"]').checked = true;
             fioGroup.style.display = 'none';
             fileInput.value = '';
-            document.getElementById('goToCheck')?.addEventListener('click', () => {
+            
+            document.getElementById('goToCheckBtn')?.addEventListener('click', () => {
                 document.querySelector('.tab[data-tab="check"]').click();
                 document.getElementById('statusCode').value = code;
             });
+            
         } catch (err) {
-            apiStatus.innerText = '❌ Ошибка API';
-            alert('Не удалось отправить. Проверьте интернет и настройки MockAPI.');
+            apiStatus.innerText = '❌ Ошибка API. Проверьте интернет и настройки MockAPI.';
+            apiStatus.style.background = '#fee2e2';
+            console.error(err);
+            alert('Не удалось отправить обращение. Проверьте соединение с интернетом.');
         }
     });
 
@@ -206,34 +245,61 @@
     const statusCodeInput = document.getElementById('statusCode');
     const statusResult = document.getElementById('statusResult');
 
+    function getStatusBadge(statusKey, statusText) {
+        switch(statusKey) {
+            case 'waiting': return `<span style="background:#fef3c7; color:#92400e; padding:4px 12px; border-radius:20px;">⏳ ${statusText}</span>`;
+            case 'work': return `<span style="background:#dbeafe; color:#1e40af; padding:4px 12px; border-radius:20px;">🔄 ${statusText}</span>`;
+            case 'verify': return `<span style="background:#e0e7ff; color:#3730a3; padding:4px 12px; border-radius:20px;">🔍 ${statusText}</span>`;
+            case 'rejected': return `<span style="background:#fee2e2; color:#991b1b; padding:4px 12px; border-radius:20px;">❌ ${statusText}</span>`;
+            case 'resolved': return `<span style="background:#dcfce7; color:#166534; padding:4px 12px; border-radius:20px;">✅ ${statusText}</span>`;
+            default: return `<span style="background:#e2e8f0; padding:4px 12px; border-radius:20px;">${statusText}</span>`;
+        }
+    }
+
     checkBtn.addEventListener('click', async () => {
         const code = statusCodeInput.value.trim().toUpperCase();
-        if (!code) { alert('Введите код'); return; }
-        const report = await getReport(code);
+        if (!code) { 
+            alert('Введите код обращения'); 
+            return; 
+        }
+        
+        statusResult.style.display = 'block';
+        statusResult.innerHTML = '<div style="text-align:center;">⏳ Загрузка...</div>';
+        
+        const report = await getReportByCode(code);
+        
         if (!report) {
-            statusResult.style.display = 'block';
-            statusResult.innerHTML = `<div style="color:#b91c1c;">❌ Обращение не найдено</div>`;
+            statusResult.innerHTML = `
+                <div style="color:#b91c1c; background:#fee2e2; padding:16px; border-radius:16px;">
+                    ❌ Обращение с кодом "${code}" не найдено.<br>
+                    Проверьте правильность кода.
+                </div>
+            `;
             return;
         }
-        const statusStyle = {
-            waiting: '⏳ Ожидает внимания',
-            work: '🔄 В работе',
-            verify: '🔍 В проверке',
-            rejected: '❌ Отклонено',
-            resolved: '✅ Меры приняты'
-        }[report.statusKey] || report.status;
-        let extra = '';
+        
+        let resolutionHtml = '';
         if (report.resolutionText) {
-            extra = `<div style="background:#fef9e3; padding:12px; border-radius:12px; margin-top:12px;"><strong>📌 ${report.statusKey === 'rejected' ? 'Причина' : 'Принятые меры'}:</strong><br>${report.resolutionText}</div>`;
+            if (report.statusKey === 'rejected') {
+                resolutionHtml = `<div style="background:#fef9e3; padding:12px; border-radius:12px; margin-top:12px;"><strong>📌 Причина отклонения:</strong><br>${report.resolutionText}</div>`;
+            } else if (report.statusKey === 'resolved') {
+                resolutionHtml = `<div style="background:#fef9e3; padding:12px; border-radius:12px; margin-top:12px;"><strong>📌 Принятые меры:</strong><br>${report.resolutionText}</div>`;
+            } else if (report.resolutionText) {
+                resolutionHtml = `<div style="background:#f8fafc; padding:12px; border-radius:12px; margin-top:12px;"><strong>💬 Комментарий:</strong><br>${report.resolutionText}</div>`;
+            }
         }
-        statusResult.style.display = 'block';
+        
         statusResult.innerHTML = `
             <div style="background:white; border-radius:16px; padding:20px;">
-                <div>Код: ${code}</div>
-                <div style="margin:12px 0;"><strong>${statusStyle}</strong></div>
-                <div>Категория: ${report.category}</div>
-                <div>Дата: ${report.createdAt}</div>
-                ${extra}
+                <div style="font-size:14px; color:#64748b; margin-bottom:8px;">Код: ${code}</div>
+                <div style="margin-bottom:16px;">${getStatusBadge(report.statusKey, report.status)}</div>
+                <table style="width:100%; text-align:left; font-size:14px; border-collapse:collapse;">
+                    <tr><td style="padding:6px 0;"><strong>Категория:</strong></td><td>${report.category || ''}</td></tr>
+                    <tr><td style="padding:6px 0;"><strong>Дата подачи:</strong></td><td>${report.createdAt || ''}</td></tr>
+                    <tr><td style="padding:6px 0;"><strong>Анонимно:</strong></td><td>${report.isAnon ? 'Да (личные данные не раскрываются)' : 'Нет'}</td></tr>
+                    <tr><td style="padding:6px 0;"><strong>Последнее обновление:</strong></td><td>${report.updatedAt || report.createdAt}</td></tr>
+                </table>
+                ${resolutionHtml}
             </div>
         `;
     });
